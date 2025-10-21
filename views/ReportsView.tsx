@@ -3,12 +3,12 @@ import { useMockData } from '../hooks/useMockData';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { exportInsightsToCSV, exportInsightsToJSON } from '../services/reportService';
+import { exportReportToCSV, exportReportToJSON } from '../services/reportService';
 import { ReportIcon } from '../components/icons';
-import { Report } from '../types';
+import { Report, ReportData } from '../types';
 
 const ReportsView: React.FC = () => {
-    const { reports, insights } = useMockData();
+    const { reports, insights, salesTrendData } = useMockData();
     const [weeklyReport, setWeeklyReport] = useState(true);
     const [monthlyReport, setMonthlyReport] = useState(false);
     const [notificationEmail, setNotificationEmail] = useState('');
@@ -28,11 +28,25 @@ const ReportsView: React.FC = () => {
         return "Just now";
     };
 
+    const getReportData = (): ReportData => {
+         const pendingAutomations = insights.filter(i => i.severity === 'High' || i.severity === 'Medium').length; // Mock logic
+        return {
+            keyMetrics: {
+                totalInsights: insights.length,
+                pendingAutomations: pendingAutomations,
+                highSeverityAlerts: insights.filter(i => i.severity === 'High').length,
+            },
+            salesTrend: salesTrendData,
+            insights: insights,
+        };
+    };
+
     const handleDownload = (format: 'csv' | 'json') => {
+        const reportData = getReportData();
         if (format === 'csv') {
-            exportInsightsToCSV(insights);
+            exportReportToCSV(reportData);
         } else {
-            exportInsightsToJSON(insights);
+            exportReportToJSON(reportData);
         }
     };
     

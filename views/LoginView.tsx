@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/AuthProvider';
-import { AtlasLogo, GoogleIcon, PhoneIcon } from '../components/icons';
+import { AtlasLogo, GoogleIcon, PhoneIcon, Loader2 } from '../components/icons';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
@@ -18,22 +17,33 @@ const LoginView: React.FC = () => {
     
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [otpLoading, setOtpLoading] = useState(false);
     
     const [otpSent, setOtpSent] = useState(false);
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+    const [cooldown, setCooldown] = useState(0);
 
     const { login, signup, signInWithGoogle, signInWithPhone } = useAuth();
     const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+    const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
-    // Setup reCAPTCHA verifier
+    // Cooldown timer effect
     useEffect(() => {
-        if (authMethod === 'phone' && recaptchaContainerRef.current && !(window as any).recaptchaVerifier) {
-            (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+        if (cooldown > 0) {
+            const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldown]);
+    
+    // Setup reCAPTCHA verifier once
+    useEffect(() => {
+        if (recaptchaContainerRef.current && !recaptchaVerifierRef.current) {
+            recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
                 'size': 'invisible',
-                'callback': (response: any) => {},
+                'callback': () => {},
             });
         }
-    }, [authMethod]);
+    }, []);
     
     const handleGoogleSignIn = async () => {
         setError('');
@@ -51,37 +61,41 @@ const LoginView: React.FC = () => {
         setError('');
         setLoading(true);
         try {
-            await login(email, password).catch(async (loginError) => {
-                 if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/wrong-password') {
-                    // Try signing up if login fails, for a seamless experience
-                    return await signup(email, password);
-                 }
-                 throw loginError;
-            });
-        } catch (err: any) {
-            setError(err.message || 'Failed to authenticate. Please check your credentials.');
+            // Try to log in first
+            await login(email, password);
+        } catch (loginError: any) {
+            // If user doesn't exist, try to sign them up
+            if (loginError.code === 'auth/user-not-found') {
+                try {
+                    await signup(email, password);
+                } catch (signupError: any) {
+                     setError(signupError.message || 'Failed to create a new account.');
+                }
+            } else {
+                 setError(loginError.message || 'Failed to authenticate. Please check your credentials.');
+            }
         }
         setLoading(false);
     };
     
     const handlePhoneSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (cooldown > 0) return;
+
         setError('');
         setLoading(true);
         try {
-            const verifier = (window as any).recaptchaVerifier;
-            const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
+            const verifier = recaptchaVerifierRef.current!;
+            const formattedPhone = phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`; // Default to +1 if no country code
             const result = await signInWithPhone(formattedPhone, verifier);
             setConfirmationResult(result);
             setOtpSent(true);
+            setCooldown(60); // Start 60-second cooldown
         } catch(err: any) {
             setError(err.message || 'Failed to send OTP. Ensure phone number is valid and includes country code (e.g., +15551234567).');
-            const recaptcha = (window as any).recaptchaVerifier;
-            if (recaptcha) {
-                recaptcha.render().then((widgetId: any) => {
-                    (window as any).grecaptcha?.reset(widgetId);
-                });
-            }
+            recaptchaVerifierRef.current?.render().then((widgetId) => {
+                (window as any).grecaptcha?.reset(widgetId);
+            });
         }
         setLoading(false);
     };
@@ -89,10 +103,10 @@ const LoginView: React.FC = () => {
     const handleOtpSubmit = async (e: React.FormEvent) => {
          e.preventDefault();
          setError('');
-         setLoading(true);
+         setOtpLoading(true);
          if (!confirmationResult) {
             setError("Something went wrong. Please try sending the code again.");
-            setLoading(false);
+            setOtpLoading(false);
             return;
          }
          try {
@@ -100,9 +114,17 @@ const LoginView: React.FC = () => {
          } catch(err: any) {
              setError(err.message || 'Failed to verify OTP. The code may be incorrect or expired.');
          }
-         setLoading(false);
+         setOtpLoading(false);
     };
     
+    const resetPhoneAuth = () => {
+        setOtpSent(false);
+        setError('');
+        setCooldown(0);
+        setPhone('');
+        setOtp('');
+    }
+
     const renderEmailForm = () => (
         <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -114,7 +136,7 @@ const LoginView: React.FC = () => {
                 <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Authenticating...' : 'Continue with Email'}
+                {loading ? <Loader2 className="animate-spin" /> : 'Continue with Email'}
             </Button>
         </form>
     );
@@ -127,8 +149,8 @@ const LoginView: React.FC = () => {
                         <label htmlFor="phone" className="text-sm font-medium text-muted-foreground">Phone Number</label>
                         <Input id="phone" type="tel" placeholder="+1 555-123-4567" required value={phone} onChange={(e) => setPhone(e.target.value)} />
                     </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
-                        {loading ? 'Sending Code...' : 'Send Verification Code'}
+                    <Button type="submit" className="w-full" disabled={loading || cooldown > 0}>
+                        {loading ? <Loader2 className="animate-spin" /> : (cooldown > 0 ? `Resend in ${cooldown}s` : 'Send Verification Code')}
                     </Button>
                 </form>
             ) : (
@@ -136,12 +158,12 @@ const LoginView: React.FC = () => {
                     <p className="text-sm text-center text-muted-foreground">Enter the 6-digit code sent to {phone}.</p>
                     <div className="space-y-2">
                         <label htmlFor="otp" className="text-sm font-medium text-muted-foreground">Verification Code</label>
-                        <Input id="otp" type="text" inputMode="numeric" placeholder="123456" required value={otp} onChange={(e) => setOtp(e.target.value)} />
+                        <Input id="otp" type="text" inputMode="numeric" placeholder="123456" required value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={6} />
                     </div>
-                     <Button type="submit" className="w-full" disabled={loading}>
-                        {loading ? 'Verifying...' : 'Verify & Sign In'}
+                     <Button type="submit" className="w-full" disabled={otpLoading}>
+                        {otpLoading ? <Loader2 className="animate-spin" /> : 'Verify & Sign In'}
                     </Button>
-                    <Button variant="link" size="sm" onClick={() => { setOtpSent(false); setError(''); }} className="w-full text-muted-foreground">
+                    <Button variant="link" size="sm" onClick={resetPhoneAuth} className="w-full text-muted-foreground">
                         Use a different number
                     </Button>
                 </form>

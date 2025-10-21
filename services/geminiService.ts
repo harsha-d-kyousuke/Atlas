@@ -1,12 +1,10 @@
-
-
 import { GoogleGenAI, Chat, Type } from "@google/genai";
 import { ChatMessage, AnalysisResult, ChartDataPoint } from '../types';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
 
 if (!API_KEY) {
-  console.warn("VITE_API_KEY environment variable not set. Gemini API calls will fail.");
+  console.warn("VITE_API_KEY is not set. Gemini API calls will fail. Please create a .env.local file or set it in your hosting provider.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
@@ -24,9 +22,6 @@ export const streamChatResponse = async (
   onChunk: (chunk: string) => void
 ) => {
   try {
-    // Note: The current Gemini SDK chat doesn't directly take history. 
-    // For a stateful conversation, we rely on the `chat` instance created above.
-    // To implement a true history, you would rebuild context on each call if not using the stateful chat object.
     const responseStream = await chat.sendMessageStream({ message: newMessage });
 
     for await (const chunk of responseStream) {

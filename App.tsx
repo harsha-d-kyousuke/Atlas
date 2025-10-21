@@ -14,39 +14,34 @@ import { ViewType } from './types';
 import { useAuth } from './hooks/AuthProvider';
 import { Loader2 } from './components/icons';
 
-type AppState = 'start' | 'auth';
+type AppStatus = 'splash' | 'start' | 'auth' | 'loading' | 'ready';
 
 const App: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
-  const [appState, setAppState] = useState<AppState>('start');
-  const [showSplash, setShowSplash] = useState(true);
+  const [status, setStatus] = useState<AppStatus>('splash');
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => {
-      setIsFadingOut(true);
-    }, 2000); // Start fading out after 2 seconds
+    if (status === 'splash') {
+      const fadeTimer = setTimeout(() => setIsFadingOut(true), 1500);
+      const splashTimer = setTimeout(() => setStatus('start'), 2000);
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(splashTimer);
+      };
+    }
+  }, [status]);
 
-    const splashTimer = setTimeout(() => {
-      setShowSplash(false);
-    }, 2500); // Remove splash screen after fade out (0.5s animation)
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(splashTimer);
-    };
-  }, []);
-
-  if (showSplash) {
+  if (status === 'splash') {
     return <SplashScreen isFadingOut={isFadingOut} />;
   }
-  
-  if (appState === 'start') {
-    return <StartScreen onGetStarted={() => setAppState('auth')} />;
-  }
 
-  if (loading) {
+  if (status === 'start') {
+    return <StartScreen onGetStarted={() => setStatus('auth')} />;
+  }
+  
+  if (authLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

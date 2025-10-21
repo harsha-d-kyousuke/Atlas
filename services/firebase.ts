@@ -1,23 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, RecaptchaVerifier } from "firebase/auth";
 
-// =================================================================================================
-// IMPORTANT: FIREBASE CONFIGURATION
-// =================================================================================================
-// This app is configured to load Firebase credentials from environment variables.
-// For local development, create a `.env.local` file in the root of your project
-// and add your Firebase config values there, prefixed with `VITE_`.
-// For production (e.g., on Vercel), set these environment variables in the project settings.
-//
-// Example `.env.local` file:
-// VITE_FIREBASE_API_KEY="AIzaSy..."
-// VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
-// VITE_FIREBASE_PROJECT_ID="your-project-id"
-// VITE_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
-// VITE_FIREBASE_MESSAGING_SENDER_ID="1234567890"
-// VITE_FIREBASE_APP_ID="1:12345:web:abcdef"
-// =================================================================================================
-
+// Securely load Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -26,6 +10,11 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
+// Check if Firebase config is loaded
+if (!firebaseConfig.apiKey) {
+    console.error("Firebase configuration is missing. Please check your .env.local file or hosting provider's environment variables.");
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

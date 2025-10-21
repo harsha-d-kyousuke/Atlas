@@ -64,3 +64,13 @@ export interface AnalysisResult {
         description: string;
     }[];
 }
+
+export interface ReportData {
+    keyMetrics: {
+        totalInsights: number;
+        pendingAutomations: number;
+        highSeverityAlerts: number;
+    };
+    salesTrend: ChartDataPoint[];
+    insights: Insight[];
+}
